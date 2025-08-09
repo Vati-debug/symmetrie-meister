@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symmetrie-Spiel</title>
+    <style>
+        * { box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        .game-container {
+            max-width: 100%;
+            width: 100%;
+            text-align: center;
+            padding: 0 5px;
+        }
+
+        h1 {
+            font-size: 1.8em;
+            margin: 10px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .instructions {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+        }
+
+        .level-info {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            gap: 1px;
+            margin: 15px auto;
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 12px;
+            position: relative;
+            width: min(350px, 95vw);
+            height: min(350px, 95vw);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        .cell {
+            border: 1px solid #444;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .cell.filled {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            border-color: #ff6b6b;
+            box-shadow: 0 0 8px rgba(255,107,107,0.6);
+        }
+
+        .cell.given {
+            background: linear-gradient(135deg, #4ecdc4, #44a08d);
+            border-color: #4ecdc4;
+            box-shadow: 0 0 8px rgba(78,205,196,0.6);
+        }
+
+        .cell.diagonal-axis {
+            background: linear-gradient(135deg, #ffeb3b, #f57f17);
+            border-color: #ffeb3b;
+            box-shadow: 0 0 8px rgba(255,235,59,0.8);
+        }
+
+        .cell.diagonal-axis-empty {
+            background: rgba(255,235,59,0.3);
+            border-color: rgba(255,235,59,0.5);
+            box-shadow: 0 0 4px rgba(255,235,59,0.4);
+            cursor: not-allowed; /* Zeigt an, dass nicht klickbar */
+        }
+
+        .cell.diagonal-axis-empty:hover {
+            background: rgba(255,235,59,0.3); /* Kein Hover-Effekt */
+            border-color: rgba(255,235,59,0.5);
+            transform: none; /* Keine Skalierung */
+        }
+
+        .cell.empty {
+            background: rgba(255,255,255,0.1);
+            border-color: #666;
+        }
+
+        .cell.empty:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: #ffeb3b;
+            transform: scale(1.05);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+        }
+
+        button:hover, button:active {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        }
+
+        .info-panel {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+        }
+
+        .symmetry-line {
+            position: absolute;
+            background: rgba(255,255,255,0.6);
+            z-index: 10;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.8; }
+        }
+
+        .vertical-line {
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .horizontal-line {
+            height: 2px;
+            width: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .diagonal-line1 {
+            width: 2px;
+            height: 141%;
+            left: 50%;
+            top: -20%;
+            transform: translateX(-50%) rotate(45deg);
+        }
+
+        .explosion-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .exploding-cell {
+            position: absolute;
+            border-radius: 4px;
+            animation: cellExplode 0.8s ease-out forwards;
+        }
+
+        @keyframes cellExplode {
+            0% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            30% {
+                transform: scale(1.5) rotate(180deg);
+                opacity: 0.9;
+            }
+            100% {
+                transform: scale(0.1) rotate(720deg) translate(var(--dx), var(--dy));
+                opacity: 0;
+            }
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            animation: particleExplode 1s ease-out forwards;
+        }
+
+        @keyframes particleExplode {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0) translate(var(--dx), var(--dy)) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        .falling-cell {
+            position: absolute;
+            border-radius: 4px;
+            transition: none;
+            animation: cellFall var(--fall-duration) ease-in forwards;
+        }
+
+        @keyframes cellFall {
+            0% {
+                transform: translate(0, 0) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--fall-dx), var(--fall-dy)) rotate(var(--fall-rotation));
+                opacity: 0.8;
+            }
+        }
+
+        .debris-pile {
+            position: absolute;
+            background: #555;
+            border-radius: 2px;
+            animation: debrisPile 0.3s ease-out forwards;
+        }
+
+        @keyframes debrisPile {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 0.7;
+            }
+        }
+
+        .smoke {
+            position: absolute;
+            background: radial-gradient(circle, rgba(100,100,100,0.6) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: smokeRise 2.5s ease-out forwards;
+        }
+
+        @keyframes smokeRise {
+            0% {
+                transform: scale(0.3);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(2.5) translate(var(--dx), var(--dy));
+                opacity: 0;
+            }
+        }
+
+        .shockwave {
+            position: absolute;
+            border: 3px solid rgba(255,255,255,0.8);
+            border-radius: 50%;
+            animation: shockwaveExpand 1.2s ease-out forwards;
+        }
+
+        @keyframes shockwaveExpand {
+            0% {
+                width: 0;
+                height: 0;
+                opacity: 1;
+            }
+            100% {
+                width: 150vmax;
+                height: 150vmax;
+                opacity: 0;
+            }
+        }
+
+        .screen-flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 8000;
+            animation: flash 0.5s ease-out;
+        }
+
+        @keyframes flash {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        .screen-shake {
+            animation: shake 0.8s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(-3px, -2px) rotate(-0.5deg); }
+            20% { transform: translate(3px, 2px) rotate(0.5deg); }
+            30% { transform: translate(-2px, 3px) rotate(-0.3deg); }
+            40% { transform: translate(2px, -3px) rotate(0.3deg); }
+            50% { transform: translate(-3px, 2px) rotate(-0.2deg); }
+            60% { transform: translate(3px, -2px) rotate(0.2deg); }
+            70% { transform: translate(-2px, -3px) rotate(-0.1deg); }
+            80% { transform: translate(2px, 3px) rotate(0.1deg); }
+            90% { transform: translate(-1px, -2px); }
+        }
+
+        .success-message {
+            position: fixed;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 15px;
+            font-size: 1.2em;
+            font-weight: bold;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            z-index: 5000;
+            animation: successPop 0.6s ease-out;
+        }
+
+        @keyframes successPop {
+            0% { 
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0;
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+            100% { 
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+        }
+
+        .game-complete-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(45deg, rgba(0,0,0,0.8), rgba(0,0,0,0.9));
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            animation: overlayFadeIn 1s ease-out;
+        }
+
+        .game-complete-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            text-align: center;
+            color: white;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .complete-title {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .stats-container {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 20px 0;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+
+        .highscore-section {
+            margin-top: 30px;
+        }
+
+        .name-input-container {
+            margin: 20px 0;
+        }
+
+        .name-input {
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+            border-radius: 10px;
+            margin: 0 10px;
+            max-width: 150px;
+        }
+
+        .highscore-list {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: left;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .highscore-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .highscore-entry:last-child {
+            border-bottom: none;
+        }
+
+        .highscore-rank {
+            font-weight: bold;
+            margin-right: 10px;
+            color: #ffeb3b;
+        }
+
+        .complete-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        @keyframes overlayFadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🔄 Symmetrie-Meister 🔄</h1>
+        
+        <div class="instructions">
+            <p><strong>Spielregeln:</strong> Ergänze die Symmetrie! Die türkisen Zellen sind vorgegeben. 
+            Klicke auf die leeren Felder, um das symmetrische Muster zu vervollständigen!</p>
+        </div>
+
+        <div class="level-info">
+            Level <span id="currentLevel">1</span> - <span id="symmetryType">Vertikale Symmetrie</span>
+        </div>
+
+        <div class="game-board" id="gameBoard">
+            <div class="symmetry-line vertical-line" id="symmetryLine"></div>
+        </div>
+
+        <div class="controls">
+            <button onclick="checkSolution()">Lösung Prüfen</button>
+            <button onclick="nextLevel()">Nächstes Level</button>
+            <button onclick="resetLevel()">Neustart</button>
+        </div>
+
+        <div class="info-panel">
+            <div><strong>Symmetrie-Arten:</strong></div>
+            <div>Level 1-2: Vertikal | Level 3-4: Horizontal | Level 5-6: Diagonal</div>
+        </div>
+    </div>
+
+    <script>
+        let currentLevel = 1;
+        let gameBoard = [];
+        let solutionBoard = [];
+        let givenCells = [];
+        let isGameComplete = false;
+        let audioContext;
+        let failedAttempts = 0;
+        let totalFailedAttempts = 0;
+        let gameCompleted = false;
+        let levelStartTime = Date.now();
+        let totalTime = 0;
+        let levelTimes = [];
+        let levelCompleted = false;
+        
+        function initAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.log('Audio nicht verfügbar');
+            }
+        }
+
+        function playSound(freq, dur, type = 'sine', vol = 0.3) {
+            if (!audioContext) return;
+            try {
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.frequency.value = freq;
+                osc.type = type;
+                gain.gain.setValueAtTime(vol, audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + dur);
+                osc.start(audioContext.currentTime);
+                osc.stop(audioContext.currentTime + dur);
+            } catch (e) {}
+        }
+
+        function initGame() {
+            initAudio();
+            levelStartTime = Date.now();
+            createBoard();
+            generateLevel(currentLevel);
+        }
+
+        function createBoard() {
+            const board = document.getElementById('gameBoard');
+            const line = document.getElementById('symmetryLine');
+            const cells = board.querySelectorAll('.cell');
+            cells.forEach(cell => cell.remove());
+            
+            gameBoard = [];
+            solutionBoard = [];
+            givenCells = [];
+            
+            for (let i = 0; i < 100; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell empty';
+                cell.dataset.index = i;
+                cell.addEventListener('click', () => cellClick(i));
+                board.appendChild(cell);
+                
+                gameBoard.push(0);
+                solutionBoard.push(0);
+                givenCells.push(false);
+            }
+        }
+
+        function generateLevel(level) {
+            isGameComplete = false;
+            levelCompleted = false;
+            updateLevelInfo(level);
+            clearBoard();
+            failedAttempts = 0; // Reset für neues Level
+            levelStartTime = Date.now(); // Start der Zeitmessung
+            
+            switch (level) {
+                case 1:
+                case 2:
+                    generateVerticalSymmetry();
+                    updateSymmetryLine('vertical');
+                    break;
+                case 3:
+                case 4:
+                    generateHorizontalSymmetry();
+                    updateSymmetryLine('horizontal');
+                    break;
+                case 5:
+                case 6:
+                    generateDiagonalSymmetry();
+                    updateSymmetryLine('diagonal1');
+                    break;
+                default:
+                    currentLevel = 1;
+                    generateVerticalSymmetry();
+                    updateSymmetryLine('vertical');
+            }
+            renderBoard();
+        }
+
+        function generateVerticalSymmetry() {
+            const density = 0.25 + (currentLevel % 2) * 0.1;
+            
+            for (let row = 0; row < 10; row++) {
+                for (let col = 0; col < 5; col++) {
+                    const index = row * 10 + col;
+                    const value = Math.random() < density ? 1 : 0;
+                    solutionBoard[index] = value;
+                    gameBoard[index] = value;
+                    givenCells[index] = value === 1;
+                }
+            }
+            
+            for (let row = 0; row < 10; row++) {
+                for (let col = 5; col < 10; col++) {
+                    const index = row * 10 + col;
+                    const mirrorCol = 9 - col;
+                    const mirrorIndex = row * 10 + mirrorCol;
+                    solutionBoard[index] = solutionBoard[mirrorIndex];
+                    gameBoard[index] = 0;
+                    givenCells[index] = false;
+                }
+            }
+        }
+
+        function generateHorizontalSymmetry() {
+            const density = 0.25 + (currentLevel % 2) * 0.1;
+            
+            for (let row = 0; row < 5; row++) {
+                for (let col = 0; col < 10; col++) {
+                    const index = row * 10 + col;
+                    const value = Math.random() < density ? 1 : 0;
+                    solutionBoard[index] = value;
+                    gameBoard[index] = value;
+                    givenCells[index] = value === 1;
+                }
+            }
+            
+            for (let row = 5; row < 10; row++) {
+                for (let col = 0; col < 10; col++) {
+                    const index = row * 10 + col;
+                    const mirrorRow = 9 - row;
+                    const mirrorIndex = mirrorRow * 10 + col;
+                    solutionBoard[index] = solutionBoard[mirrorIndex];
+                    gameBoard[index] = 0;
+                    givenCells[index] = false;
+                }
+            }
+        }
+
+        function generateDiagonalSymmetry() {
+            const density = 0.25 + (currentLevel % 2) * 0.1;
+            
+            for (let row = 0; row < 10; row++) {
+                for (let col = 0; col < 10; col++) {
+                    const index = row * 10 + col;
+                    if (row < col) { // Nur oberhalb der Diagonale
+                        const value = Math.random() < density ? 1 : 0;
+                        solutionBoard[index] = value;
+                        gameBoard[index] = value;
+                        givenCells[index] = value === 1;
+                    } else if (row === col) { // Auf der Diagonale - keine Blöcke
+                        solutionBoard[index] = 0;
+                        gameBoard[index] = 0;
+                        givenCells[index] = false;
+                    }
+                }
+            }
+            
+            for (let row = 0; row < 10; row++) {
+                for (let col = 0; col < 10; col++) {
+                    const index = row * 10 + col;
+                    if (row > col) { // Unterhalb der Diagonale
+                        const mirrorIndex = col * 10 + row;
+                        solutionBoard[index] = solutionBoard[mirrorIndex];
+                        gameBoard[index] = 0;
+                        givenCells[index] = false;
+                    }
+                }
+            }
+        }
+
+        function updateSymmetryLine(type) {
+            const line = document.getElementById('symmetryLine');
+            line.className = 'symmetry-line';
+            if (type) {
+                line.classList.add(type + '-line');
+                line.style.display = 'block';
+            }
+        }
+
+        function updateLevelInfo(level) {
+            document.getElementById('currentLevel').textContent = level;
+            const typeElement = document.getElementById('symmetryType');
+            
+            if (level <= 2) typeElement.textContent = 'Vertikale Symmetrie';
+            else if (level <= 4) typeElement.textContent = 'Horizontale Symmetrie';
+            else typeElement.textContent = 'Diagonale Symmetrie';
+        }
+
+        function clearBoard() {
+            gameBoard.fill(0);
+            solutionBoard.fill(0);
+            givenCells.fill(false);
+        }
+
+        function renderBoard() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach((cell, index) => {
+                cell.className = 'cell';
+                
+                // Prüfe ob Zelle auf der Diagonale liegt (bei diagonaler Symmetrie)
+                const row = Math.floor(index / 10);
+                const col = index % 10;
+                const isDiagonalAxis = (currentLevel >= 5 && currentLevel <= 6) && (row === col);
+                
+                if (isDiagonalAxis && (givenCells[index] || gameBoard[index] === 1)) {
+                    cell.classList.add('diagonal-axis');
+                } else if (isDiagonalAxis && gameBoard[index] === 0) {
+                    cell.classList.add('diagonal-axis-empty');
+                } else if (givenCells[index]) {
+                    cell.classList.add('given');
+                } else if (gameBoard[index] === 1) {
+                    cell.classList.add('filled');
+                } else {
+                    cell.classList.add('empty');
+                }
+            });
+        }
+
+        function cellClick(index) {
+            if (isGameComplete || givenCells[index]) return;
+            
+            // Verhindere Klicks auf die Diagonalachse bei diagonaler Symmetrie
+            const row = Math.floor(index / 10);
+            const col = index % 10;
+            if ((currentLevel >= 5 && currentLevel <= 6) && (row === col)) {
+                return; // Keine Interaktion auf der Diagonalachse
+            }
+            
+            gameBoard[index] = gameBoard[index] === 1 ? 0 : 1;
+            playSound(gameBoard[index] === 1 ? 520 : 320, 0.1);
+            renderBoard();
+        }
+
+        function checkSolution() {
+            if (isGameComplete) return;
+            
+            let isCorrect = true;
+            for (let i = 0; i < 100; i++) {
+                if (gameBoard[i] !== solutionBoard[i]) {
+                    isCorrect = false;
+                    break;
+                }
+            }
+            
+            if (isCorrect) {
+                isGameComplete = true;
+                levelCompleted = true;
+                
+                // Berechne Levelzeit
+                const levelTime = Date.now() - levelStartTime;
+                levelTimes.push(levelTime);
+                totalTime += levelTime;
+                
+                // Prüfe ob alle Level abgeschlossen sind
+                if (currentLevel === 6) {
+                    gameCompleted = true;
+                    setTimeout(() => {
+                        showGameCompleteScreen();
+                    }, 2000); // Nach der Explosion
+                } else {
+                    showSuccessMessage();
+                }
+                
+                createSpectacularExplosion();
+            } else {
+                // Fehlversuch zählen
+                failedAttempts++;
+                totalFailedAttempts++;
+                
+                playSound(150, 0.5, 'sawtooth');
+                
+                const cells = document.querySelectorAll('.cell');
+                cells.forEach((cell, index) => {
+                    if (!givenCells[index] && gameBoard[index] !== solutionBoard[index]) {
+                        cell.style.borderColor = '#ff4757';
+                        setTimeout(() => {
+                            cell.style.borderColor = '';
+                        }, 1000);
+                    }
+                });
+            }
+        }
+
+        let explosionContainer = null; // Globale Variable für Container
+
+        function createSpectacularExplosion() {
+            const board = document.getElementById('gameBoard');
+            const rect = board.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            document.body.classList.add('screen-shake');
+            setTimeout(() => document.body.classList.remove('screen-shake'), 800);
+            
+            // MASSIVE Explosions-Sound-Sequenz
+            setTimeout(() => playSound(25, 0.4, 'square', 0.9), 0);      
+            setTimeout(() => playSound(35, 0.5, 'sawtooth', 1.0), 80);   
+            setTimeout(() => playSound(45, 0.6, 'triangle', 0.8), 150);  
+            setTimeout(() => playSound(30, 0.8, 'square', 0.9), 250);    
+            setTimeout(() => playSound(60, 0.4, 'sawtooth', 0.7), 350);  
+            setTimeout(() => playSound(40, 1.0, 'square', 0.8), 500);    
+            
+            const flash = document.createElement('div');
+            flash.className = 'screen-flash';
+            document.body.appendChild(flash);
+            setTimeout(() => flash.remove(), 500);
+            
+            // Erstelle globalen Container für Trümmer (bleibt bestehen)
+            if (explosionContainer) {
+                explosionContainer.remove(); // Entferne alten Container falls vorhanden
+            }
+            explosionContainer = document.createElement('div');
+            explosionContainer.className = 'explosion-container';
+            document.body.appendChild(explosionContainer);
+            
+            // Schockwellen
+            for (let s = 0; s < 3; s++) {
+                setTimeout(() => {
+                    const shock = document.createElement('div');
+                    shock.className = 'shockwave';
+                    shock.style.left = centerX + 'px';
+                    shock.style.top = centerY + 'px';
+                    shock.style.transform = 'translate(-50%, -50%)';
+                    explosionContainer.appendChild(shock);
+                }, s * 100);
+            }
+            
+            // Rauch
+            for (let s = 0; s < 15; s++) {
+                setTimeout(() => {
+                    const smoke = document.createElement('div');
+                    smoke.className = 'smoke';
+                    smoke.style.width = (25 + Math.random() * 40) + 'px';
+                    smoke.style.height = (25 + Math.random() * 40) + 'px';
+                    
+                    const x = centerX + (Math.random() - 0.5) * 200;
+                    const y = centerY + (Math.random() - 0.5) * 200;
+                    smoke.style.left = x + 'px';
+                    smoke.style.top = y + 'px';
+                    
+                    const dx = (Math.random() - 0.5) * 100 + 'px';
+                    const dy = -(40 + Math.random() * 100) + 'px';
+                    smoke.style.setProperty('--dx', dx);
+                    smoke.style.setProperty('--dy', dy);
+                    
+                    explosionContainer.appendChild(smoke);
+                }, s * 50);
+            }
+            
+            // Bestimme 80% ALLER 100 Zellen für Explosion
+            const allIndices = [];
+            for (let i = 0; i < 100; i++) {
+                allIndices.push(i);
+            }
+            
+            // Mische alle Indizes und wähle die ersten 80 (= 80%)
+            const shuffledIndices = allIndices.sort(() => Math.random() - 0.5);
+            const explodingIndices = shuffledIndices.slice(0, 80); // Exakt 80 von 100 Zellen
+            
+            console.log(`Exploding ${explodingIndices.length} out of 100 cells`); // Debug
+            
+            const cells = document.querySelectorAll('.cell');
+            
+            // Explodiere die 80 ausgewählten Zellen
+            explodingIndices.forEach((index, arrayIndex) => {
+                setTimeout(() => {
+                    const cell = cells[index];
+                    const cellRect = cell.getBoundingClientRect();
+                    
+                    const explCell = document.createElement('div');
+                    explCell.className = 'exploding-cell';
+                    
+                    // Bestimme Farbe basierend auf ursprünglichem Zustand
+                    if (givenCells[index] && gameBoard[index] === 1) {
+                        // Prüfe ob auf Diagonale (gelb)
+                        const row = Math.floor(index / 10);
+                        const col = index % 10;
+                        if ((currentLevel >= 5 && currentLevel <= 6) && (row === col)) {
+                            explCell.style.background = 'linear-gradient(135deg, #ffeb3b, #f57f17)';
+                        } else {
+                            explCell.style.background = 'linear-gradient(135deg, #4ecdc4, #44a08d)';
+                        }
+                    } else if (gameBoard[index] === 1) {
+                        explCell.style.background = 'linear-gradient(135deg, #ff6b6b, #ee5a24)';
+                    } else {
+                        // Auch leere Zellen explodieren (grauer Schutt)
+                        explCell.style.background = 'linear-gradient(135deg, #666, #444)';
+                        explCell.style.border = '1px solid #333';
+                    }
+                    
+                    explCell.style.width = cellRect.width + 'px';
+                    explCell.style.height = cellRect.height + 'px';
+                    explCell.style.left = cellRect.left + 'px';
+                    explCell.style.top = cellRect.top + 'px';
+                    
+                    const angle = Math.atan2(cellRect.top - centerY, cellRect.left - centerX);
+                    const dist = 200 + Math.random() * 500;
+                    const dx = Math.cos(angle) * dist + 'px';
+                    const dy = Math.sin(angle) * dist + 'px';
+                    
+                    explCell.style.setProperty('--dx', dx);
+                    explCell.style.setProperty('--dy', dy);
+                    
+                    explosionContainer.appendChild(explCell);
+                    
+                    // Verstecke originale Zelle sofort
+                    cell.style.opacity = '0.1';
+                    
+                    // Mehr Partikel
+                    for (let p = 0; p < 8; p++) {
+                        setTimeout(() => {
+                            const particle = document.createElement('div');
+                            particle.className = 'particle';
+                            
+                            const pAngle = (Math.PI * 2 * p) / 8 + Math.random() * 0.3;
+                            const pDist = 80 + Math.random() * 200;
+                            const pDx = Math.cos(pAngle) * pDist + 'px';
+                            const pDy = Math.sin(pAngle) * pDist + 'px';
+                            
+                            particle.style.setProperty('--dx', pDx);
+                            particle.style.setProperty('--dy', pDy);
+                            particle.style.left = (cellRect.left + cellRect.width/2) + 'px';
+                            particle.style.top = (cellRect.top + cellRect.height/2) + 'px';
+                            
+                            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#f0932b', '#666'];
+                            particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+                            
+                            explosionContainer.appendChild(particle);
+                        }, p * 5);
+                    }
+                    
+                }, arrayIndex * 15); // Schnellere Explosion
+            });
+            
+            // Aktualisiere das Spielbrett - entferne explodierte Zellen
+            setTimeout(() => {
+                explodingIndices.forEach(index => {
+                    gameBoard[index] = 0;
+                    solutionBoard[index] = 0;
+                    givenCells[index] = false;
+                });
+                
+                console.log('Starting gravity simulation...'); // Debug
+                
+                // Starte Gravitations-Physik
+                simulateGravityPhysics(explosionContainer);
+                
+            }, explodingIndices.length * 15 + 500);
+            
+            // KEIN automatisches Aufräumen mehr - Trümmer bleiben liegen!
+        }
+
+        function simulateGravityPhysics(container) {
+            const cells = document.querySelectorAll('.cell');
+            const board = document.getElementById('gameBoard');
+            const boardRect = board.getBoundingClientRect();
+            const cellSize = boardRect.width / 10;
+            
+            console.log('Gravity simulation started'); // Debug
+            
+            // Einsturz-Geräusche
+            setTimeout(() => playSound(22, 0.8, 'square', 0.6), 0);
+            setTimeout(() => playSound(29, 0.6, 'sawtooth', 0.5), 300);
+            setTimeout(() => playSound(35, 0.4, 'triangle', 0.4), 600);
+            
+            // Erstelle 2D Grid für bessere Bearbeitung
+            const grid = [];
+            for (let row = 0; row < 10; row++) {
+                grid[row] = [];
+                for (let col = 0; col < 10; col++) {
+                    const index = row * 10 + col;
+                    grid[row][col] = {
+                        hasBlock: gameBoard[index] === 1,
+                        isGiven: givenCells[index],
+                        index: index,
+                        originalIndex: index // Für Farben bei Fall
+                    };
+                }
+            }
+            
+            let animationDelay = 0;
+            let totalFalls = 0;
+            
+            // Simuliere Gravitation - mehrere Durchgänge
+            for (let pass = 0; pass < 10; pass++) { // Bis zu 10 Durchgänge
+                let hadMovement = false;
+                
+                // Gehe durch jede Spalte, von unten nach oben
+                for (let col = 0; col < 10; col++) {
+                    for (let row = 8; row >= 0; row--) { // Von Zeile 8 nach 0
+                        if (grid[row][col].hasBlock) {
+                            // Suche die tiefste freie Position in dieser Spalte
+                            let targetRow = row;
+                            for (let checkRow = row + 1; checkRow < 10; checkRow++) {
+                                if (!grid[checkRow][col].hasBlock) {
+                                    targetRow = checkRow;
+                                } else {
+                                    break; // Stoppe bei erstem Block
+                                }
+                            }
+                            
+                            // Wenn Block fallen kann
+                            if (targetRow > row) {
+                                console.log(`Block falls from ${row},${col} to ${targetRow},${col}`); // Debug
+                                
+                                // Animiere den Fall
+                                setTimeout(() => {
+                                    animateFallingCell(
+                                        cells[grid[row][col].index],
+                                        row, targetRow, col,
+                                        boardRect, cellSize,
+                                        container,
+                                        {
+                                            isGiven: grid[row][col].isGiven,
+                                            hasBlock: true,
+                                            originalIndex: grid[row][col].index
+                                        }
+                                    );
+                                }, animationDelay);
+                                
+                                // Verschiebe Block im Grid
+                                grid[targetRow][col] = {
+                                    hasBlock: true,
+                                    isGiven: grid[row][col].isGiven,
+                                    index: grid[row][col].index,
+                                    originalIndex: grid[row][col].index // Für Farben
+                                };
+                                
+                                grid[row][col] = {
+                                    hasBlock: false,
+                                    isGiven: false,
+                                    index: row * 10 + col,
+                                    originalIndex: row * 10 + col
+                                };
+                                
+                                // Aktualisiere gameBoard
+                                gameBoard[targetRow * 10 + col] = 1;
+                                gameBoard[row * 10 + col] = 0;
+                                givenCells[targetRow * 10 + col] = grid[targetRow][col].isGiven;
+                                givenCells[row * 10 + col] = false;
+                                
+                                animationDelay += 100;
+                                totalFalls++;
+                                hadMovement = true;
+                            }
+                        }
+                    }
+                }
+                
+                if (!hadMovement) break; // Keine Bewegung mehr möglich
+            }
+            
+            console.log(`Total blocks fell: ${totalFalls}`); // Debug
+            
+            // Rendere das Brett nach der Physik-Simulation
+            setTimeout(() => {
+                renderBoard();
+                
+                // Erzeuge Trümmer-Haufen
+                setTimeout(() => {
+                    createDebrisPiles(container, boardRect, cellSize);
+                }, 500);
+                
+            }, animationDelay + 1000);
+        }
+
+        function animateFallingCell(originalCell, fromRow, toRow, col, boardRect, cellSize, container, cellData) {
+            // Verstecke originale Zelle
+            originalCell.style.opacity = '0';
+            
+            // Erstelle fallende Zelle
+            const fallingCell = document.createElement('div');
+            fallingCell.className = 'falling-cell';
+            
+            if (cellData.isGiven) {
+                // Prüfe ob auf Diagonale (gelb) - benötige row/col Info
+                const row = Math.floor(cellData.originalIndex / 10);
+                const col = cellData.originalIndex % 10;
+                if ((currentLevel >= 5 && currentLevel <= 6) && (row === col)) {
+                    fallingCell.style.background = 'linear-gradient(135deg, #ffeb3b, #f57f17)';
+                    fallingCell.style.borderColor = '#ffeb3b';
+                } else {
+                    fallingCell.style.background = 'linear-gradient(135deg, #4ecdc4, #44a08d)';
+                    fallingCell.style.borderColor = '#4ecdc4';
+                }
+            } else {
+                fallingCell.style.background = 'linear-gradient(135deg, #ff6b6b, #ee5a24)';
+                fallingCell.style.borderColor = '#ff6b6b';
+            }
+            fallingCell.style.border = '1px solid';
+            
+            fallingCell.style.width = cellSize + 'px';
+            fallingCell.style.height = cellSize + 'px';
+            fallingCell.style.left = (boardRect.left + col * (cellSize + 1) + 8) + 'px';
+            fallingCell.style.top = (boardRect.top + fromRow * (cellSize + 1) + 8) + 'px';
+            
+            const fallDistance = (toRow - fromRow) * (cellSize + 1);
+            const fallDuration = Math.sqrt(fallDistance / 500) * 1000; // Realistische Fall-Geschwindigkeit
+            
+            fallingCell.style.setProperty('--fall-dx', '0px');
+            fallingCell.style.setProperty('--fall-dy', fallDistance + 'px');
+            fallingCell.style.setProperty('--fall-rotation', (Math.random() * 360 - 180) + 'deg');
+            fallingCell.style.setProperty('--fall-duration', fallDuration + 'ms');
+            
+            container.appendChild(fallingCell);
+            
+            // Entferne fallende Zelle nach Animation
+            setTimeout(() => {
+                fallingCell.remove();
+            }, fallDuration + 100);
+        }
+
+        function createDebrisPiles(container, boardRect, cellSize) {
+            // Erstelle realistische Trümmer-Haufen mit mehr Details
+            for (let i = 0; i < 25; i++) {
+                setTimeout(() => {
+                    const debris = document.createElement('div');
+                    debris.className = 'debris-pile';
+                    
+                    const size = 2 + Math.random() * 12;
+                    debris.style.width = size + 'px';
+                    debris.style.height = size + 'px';
+                    
+                    const x = boardRect.left + Math.random() * boardRect.width;
+                    const y = boardRect.bottom - Math.random() * 50; // Größerer Bereich am Boden
+                    debris.style.left = x + 'px';
+                    debris.style.top = y + 'px';
+                    
+                    // Verschiedene Grautöne für Realismus
+                    const grayShades = ['#666', '#555', '#777', '#444', '#888'];
+                    debris.style.background = grayShades[Math.floor(Math.random() * grayShades.length)];
+                    
+                    container.appendChild(debris);
+                }, i * 80);
+            }
+            
+            // Zusätzliche Rumpel-Geräusche beim Trümmer-Fall
+            setTimeout(() => playSound(20, 0.3, 'square', 0.3), 200);
+            setTimeout(() => playSound(25, 0.2, 'triangle', 0.2), 800);
+            setTimeout(() => playSound(18, 0.4, 'square', 0.2), 1500);
+        }
+
+        function showSuccessMessage() {
+            const msg = document.createElement('div');
+            msg.className = 'success-message';
+            msg.innerHTML = '🎆 SPEKTAKULÄR! 🎆';
+            document.body.appendChild(msg);
+            setTimeout(() => msg.remove(), 2500);
+        }
+
+        function showGameCompleteScreen() {
+            const overlay = document.createElement('div');
+            overlay.className = 'game-complete-overlay';
+            
+            const avgFailedAttempts = totalFailedAttempts / 6;
+            const avgTime = totalTime / 6;
+            const totalScore = calculateFinalScore();
+            
+            overlay.innerHTML = `
+                <div class="game-complete-content">
+                    <div class="complete-title">🏆 SPIEL ABGESCHLOSSEN! 🏆</div>
+                    
+                    <div class="stats-container">
+                        <h3>📊 Deine Statistiken:</h3>
+                        <div class="stat-row">
+                            <span>Gesamtzeit:</span>
+                            <span>${formatTime(totalTime)}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>Durchschnitt pro Level:</span>
+                            <span>${formatTime(avgTime)}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>Gesamte Fehlversuche:</span>
+                            <span>${totalFailedAttempts}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>Durchschnitt pro Level:</span>
+                            <span>${avgFailedAttempts.toFixed(1)}</span>
+                        </div>
+                        <div class="stat-row" style="font-weight: bold; font-size: 1.2em; color: #ffeb3b;">
+                            <span>🌟 Finaler Score:</span>
+                            <span>${totalScore}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="highscore-section">
+                        <h3>🎯 Highscore-Liste</h3>
+                        <div class="name-input-container">
+                            <input type="text" id="playerName" class="name-input" placeholder="Dein Name" maxlength="15">
+                            <button onclick="addToHighscore()">In Liste eintragen</button>
+                        </div>
+                        <div id="highscoreList" class="highscore-list"></div>
+                    </div>
+                    
+                    <div class="complete-buttons">
+                        <button onclick="restartGame()">🔄 Noch einmal spielen</button>
+                        <button onclick="endGame()">🚪 Spiel beenden</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(overlay);
+            loadAndDisplayHighscores();
+        }
+
+        function calculateFinalScore() {
+            // Score basiert zu 75% auf Zeit, zu 25% auf Fehlversuche
+            // Niedrigere Werte = besserer Score
+            
+            // Zeitkomponente (75%): Je schneller, desto besser
+            const timeScore = Math.round(totalTime / 1000); // Zeit in Sekunden
+            
+            // Fehlversuche-Komponente (25%): Weniger Fehler = besser
+            const errorScore = totalFailedAttempts * 10; // Gewichtung der Fehler
+            
+            // Kombinierter Score (niedrigere Werte sind besser)
+            const finalScore = Math.round((timeScore * 0.75) + (errorScore * 0.25));
+            
+            return finalScore;
+        }
+
+        function formatTime(milliseconds) {
+            const totalSeconds = Math.floor(milliseconds / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function loadAndDisplayHighscores() {
+            let highscores = getHighscores();
+            displayHighscores(highscores);
+        }
+
+        function getHighscores() {
+            // Versuche localStorage, falls verfügbar
+            try {
+                const saved = localStorage.getItem('symmetry-highscores');
+                if (saved) {
+                    return JSON.parse(saved);
+                }
+            } catch (e) {
+                // localStorage nicht verfügbar
+            }
+            
+            // Fallback auf globale Variable
+            if (!window.symmetryHighscores) {
+                window.symmetryHighscores = [];
+            }
+            return window.symmetryHighscores;
+        }
+
+        function saveHighscores(highscores) {
+            // Versuche localStorage zuerst
+            try {
+                localStorage.setItem('symmetry-highscores', JSON.stringify(highscores));
+            } catch (e) {
+                // localStorage nicht verfügbar, verwende globale Variable
+            }
+            
+            // Immer auch in globaler Variable speichern
+            window.symmetryHighscores = highscores;
+        }
+
+        function displayHighscores(highscores) {
+            const listElement = document.getElementById('highscoreList');
+            if (!listElement) return;
+            
+            if (highscores.length === 0) {
+                listElement.innerHTML = '<div style="text-align: center; color: #ccc;">Noch keine Einträge</div>';
+                return;
+            }
+            
+            let html = '';
+            highscores.forEach((entry, index) => {
+                const rank = index + 1;
+                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+                html += `
+                    <div class="highscore-entry">
+                        <div>
+                            <span class="highscore-rank">${rank}. ${medal}</span>
+                            <span>${entry.name}</span>
+                        </div>
+                        <div>Score: ${entry.score} (${entry.time}, ${entry.attempts} Fehler)</div>
+                    </div>
+                `;
+            });
+            
+            listElement.innerHTML = html;
+        }
+
+        function addToHighscore() {
+            const nameInput = document.getElementById('playerName');
+            const name = nameInput.value.trim() || 'Spieler';
+            
+            let highscores = getHighscores();
+            
+            const newEntry = {
+                name: name,
+                score: calculateFinalScore(),
+                time: formatTime(totalTime),
+                attempts: totalFailedAttempts,
+                date: new Date().toLocaleDateString()
+            };
+            
+            highscores.push(newEntry);
+            
+            // Sortiere nach Score (niedrigere Werte sind besser)
+            highscores.sort((a, b) => a.score - b.score);
+            
+            // Behalte nur Top 10
+            highscores = highscores.slice(0, 10);
+            
+            saveHighscores(highscores);
+            displayHighscores(highscores);
+            nameInput.value = '';
+        }
+
+        function restartGame() {
+            // Entferne Overlay
+            const overlay = document.querySelector('.game-complete-overlay');
+            if (overlay) overlay.remove();
+            
+            // Reset aller Variablen
+            currentLevel = 1;
+            totalFailedAttempts = 0;
+            failedAttempts = 0;
+            gameCompleted = false;
+            levelCompleted = false;
+            totalTime = 0;
+            levelTimes = [];
+            levelStartTime = Date.now();
+            
+            // Entferne Trümmer
+            if (explosionContainer) {
+                explosionContainer.remove();
+                explosionContainer = null;
+            }
+            
+            // Alle Zellen wieder sichtbar machen
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => cell.style.opacity = '1');
+            
+            // Starte neues Spiel
+            generateLevel(currentLevel);
+        }
+
+        function endGame() {
+            const overlay = document.querySelector('.game-complete-overlay');
+            if (overlay) {
+                overlay.innerHTML = `
+                    <div class="game-complete-content">
+                        <div class="complete-title">👋 Auf Wiedersehen!</div>
+                        <p>Danke fürs Spielen des Symmetrie-Meisters!</p>
+                        <button onclick="location.reload()">Neu laden</button>
+                    </div>
+                `;
+            }
+        }
+
+        function nextLevel() {
+            // Verhindere Levelwechsel wenn Level nicht gelöst oder Spiel abgeschlossen ist
+            if (!levelCompleted || gameCompleted) return;
+            
+            // Entferne Trümmer beim Levelwechsel
+            if (explosionContainer) {
+                explosionContainer.remove();
+                explosionContainer = null;
+            }
+            
+            // Alle Zellen wieder sichtbar machen
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => cell.style.opacity = '1');
+            
+            currentLevel = currentLevel < 6 ? currentLevel + 1 : 1;
+            generateLevel(currentLevel);
+        }
+
+        function resetLevel() {
+            // Entferne Trümmer beim Reset
+            if (explosionContainer) {
+                explosionContainer.remove();
+                explosionContainer = null;
+            }
+            
+            // Alle Zellen wieder sichtbar machen
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => cell.style.opacity = '1');
+            
+            generateLevel(currentLevel);
+        }
+
+        document.addEventListener('touchstart', function() {
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        });
+
+        window.addEventListener('load', initGame);
+    </script>
+</body>
+</html>
